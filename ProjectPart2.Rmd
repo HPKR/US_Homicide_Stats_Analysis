@@ -1,0 +1,264 @@
+---
+title: "Project - US Homicide Statistics Analysis"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+<h3>Load Libraries</h3>
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(skimr)
+library(scales)
+library(wesanderson)
+```
+
+
+<h3>Load Dataset</h3>
+```{r}
+homicide_stats <- read_csv("HomicideStats.csv")
+```
+
+
+<h3>Summary of Data</h3>
+```{r}
+skim(homicide_stats)
+```
+
+
+```{r}
+summary(homicide_stats)
+
+```
+
+
+<h3>Univariate Numerical - Crime Rate over the time period</h3>
+```{r}
+homicide_stats %>%
+  ggplot(aes(x = Year))+
+  geom_density(fill = "cyan", color = "black")+
+  labs(title = "Count of Total criminal cases per year",
+       x = "Year",
+       y = "Count of criminal cases")
+
+homicide_stats %>%
+  group_by(Year) %>%
+  mutate(Count = n()) %>%
+  select(Year, Count) %>%
+  distinct()
+
+# homicide_stats %>%
+#   ggplot(aes(x = Year, fill = State))+
+#   geom_histogram()+
+#   labs(title = "Count of Total criminal cases per year",
+#        x = "Year",
+#        y = "Count of criminal cases")
+
+```
+
+
+<h3>Univariate Categorical (three different years - min, median, max)</h3>
+<h3>Count of criminal cases per State for different years</h3>
+```{r}
+homicide_stats %>%
+  filter(Year == c(min(Year), median(Year), max(Year))) %>%
+  ggplot(aes(x = State))+
+  geom_bar(fill = "skyblue", color = "black")+
+  facet_grid( ~ (Year))+
+  coord_flip()+
+  labs(title = "Count of criminal cases per State for different years",
+       x = "State",
+       y = "Count of criminal cases")
+
+```
+
+
+<h3>Univariate Categorical - Most Preferred Weapon from 1980-2014</h3>
+```{r}
+homicide_stats %>%
+  ggplot(aes(x = Weapon, y = ..count..))+
+  geom_bar(fill = "navyblue", color = "black")+
+  coord_flip()+
+  labs(title = "Most preferred Weapon",
+       x = "Type of Weapon Used",
+       y = "Count of weapon ")+
+  scale_y_continuous(labels = comma)
+
+```
+
+
+
+<h3>Univariate Analysis Numerical - Which age group below 15 years is most 
+victimised?</h3>
+```{r}
+homicide_stats_age15 <- homicide_stats %>%
+  filter(`Victim Age` <= 15) %>%
+  mutate(age_group = cut(`Victim Age`, breaks=c(0,5,10,15), include.lowest = T, labels = c("0-5 Years", "6-10 Years", "11-15 Years")))
+
+homicide_stats_age15 <- homicide_stats_age15 %>%
+  group_by(age_group, `Victim Sex`) %>%
+  mutate(count = n(),
+         `Concern Count` = cut(count, breaks = c(0,5000,10000,15000), include.lowest = T, labels = c("<5000","Between 5000 and 10000","More than 10000")))
+
+#palette
+pal <- c("<5000" = "yellow", 
+         "Between 5000 and 10000" = "orange", 
+         "More than 10000" = "red")
+
+homicide_stats_age15 %>%
+  filter(!is.na(age_group)) %>%
+  ggplot(aes(x = age_group, fill = `Concern Count`))+
+  geom_bar()+
+  facet_grid( ~ `Victim Sex`)+
+  labs(title = "Overall Analysis of Crime against Victims below 15 years",
+       x = "Age Groups of Victims",
+       y = "Total Count of Victims")+
+  coord_flip()+
+  scale_x_discrete(limits = rev(levels(homicide_stats_age15$age_group))) +
+  scale_fill_manual(
+    values = pal,
+    limits = names(pal))
+```
+
+
+<h3>Univariate Categorical</h3>
+<h3>Count of Criminal Cases per State for different decades</h3>
+```{r}
+#library(forcats)
+homicide_stats_decade <- homicide_stats %>%
+  mutate(decade = cut(Year, breaks = c(1980,1989,1999,2009,2014), include.lowest = T, labels = c("1980-1989","1990-1999","2000-2009","2010-2014")))
+
+homicide_stats_decade_order <- homicide_stats_decade %>%
+  select(State, decade) %>%
+  group_by(State,decade) %>%
+  mutate(Count = n()) %>%
+  distinct() 
+
+homicide_stats_decade_order %>%
+  #mutate(Count = fct_reorder(State,desc(Count))) %>%
+  ggplot(aes(x = reorder(State, Count), y = Count))+
+  geom_bar(stat = "identity", fill = "cyan", color = "black")+
+  coord_flip()+
+  facet_grid( ~ decade)+
+  labs(title = "Count of criminal cases per State for different decades",
+       x = "State",
+       y = "Count of criminal cases")
+
+
+```
+
+
+<h3>Victim Race Crime Analysis</h3>
+```{r}
+homicide_stats_victim <- homicide_stats %>%
+  mutate(Total = n()) %>%
+  group_by(`Victim Race`) %>%
+  select(`Victim Race`, Total) %>%
+  mutate(Count = n()) %>%
+  mutate(Percentage = round(Count*100/Total,2)) %>%
+  distinct()
+
+# Gradient color
+#grad <- wes_palette("Zissou1", 100, type = "continuous")
+
+homicide_stats_victim %>%
+  ggplot(aes(x = `Victim Race`, y = Percentage))+
+  geom_bar(stat = "identity", aes(fill = Percentage, color = "red"))+
+  geom_text(aes(label = Percentage))+
+  labs(title = "Victim Race Crime Analysis",
+       x = "Victim Race",
+       y = "%age")+ 
+   scale_x_discrete(expand = c(0, 0)) #+
+   #scale_y_discrete(expand = c(0, 0)) + 
+   #coord_equal()
+
+```
+
+
+
+<h3>Bivariate Analysis (Categorical+Categorical)</h3>
+<h3>Victim Race vs Perpetrator Race Crime Analysis</h3>
+```{r}
+homicide_stats_race <- homicide_stats %>%
+  mutate(Total = n()) %>%
+  group_by(`Victim Race`,`Perpetrator Race`) %>%
+  select(`Victim Race`,`Perpetrator Race`, Total) %>%
+  mutate(Count = n()) %>%
+  mutate(Percentage = round(Count*100/Total,2)) %>%
+  distinct()
+
+# Gradient color
+grad <- wes_palette("Zissou1", 100, type = "continuous")
+
+homicide_stats_race %>%
+  ggplot(aes(x = `Victim Race`, y = `Perpetrator Race`))+
+  geom_tile(aes(fill = Percentage, color = "red"))+
+  geom_text(aes(label = Percentage))+
+  labs(title = "Victim Race vs Perpetrator Race Crime Analysis",
+       x = "Victim Race",
+       y = "Perpetrator Race")+
+  scale_fill_gradientn(colours = grad) + 
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) + 
+  coord_equal()
+
+```
+
+
+<h3>Analysis of Crime Solving Rate of various Agencies</h3>
+```{r}
+
+homicide_stats_t <- homicide_stats %>%
+  group_by(`Agency Type`,`Crime Solved`) %>%
+  select(`Agency Type`,`Crime Solved`) %>%
+  mutate(Count = n()) %>%
+  distinct()
+
+
+homicide_stats_t %>%
+  ggplot(aes(x = `Agency Type`, y = Count, fill = `Crime Solved`))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(title = "Analysis of Crime Solving Rate of various Agencies",
+       x = "Agency Type",
+       y = "Count of Criminal Cases")+
+  scale_y_continuous(labels = comma)
+
+
+```
+
+
+<h3>Conclusion</h3>
+1. On analysis, we have found out that the crime was prevalent in 1990s. Post that, we have decline in the crime rate.
+2. From 1980 to 2014, California is the leading state when it comes to crime, which is followed by Texas.
+3. Handgun is the most accessible weapon and thus, is used most in the criminal activities.
+4. Below 15 years, most of the criminal cases are reported in case of children between 0-5 years of age for both males and females.
+5. First two decades of the dataset, i.e., 1980-1989 and 1990-1999 have the highest crime rates as compared to rest of the years.
+6. 49.72% of the criminal cases are reported where the victims belong to white race whereas 46.97% of the cases belong to the victims who are of black race.
+7. 30.88% of the cases belong to the category where both the perpetrator and the victim belonged to the white race whereas 28.08% of the cases belong to the category where both are black.
+8. Most of the cases are solved by Municipal Police. Most of the unsolved cases are also in the basket of Municipal Police.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
